@@ -215,6 +215,28 @@ local function map_key(mode, key, action)
 	local req_module = ("<cmd>lua require'shade'.%s<CR>"):format(action)
 	vim.api.nvim_set_keymap(mode, key, req_module, { noremap = true, silent = true })
 end
+local function is_filetype_excluded(filetype)
+	for _, value in ipairs(state.exclude_filetypes) do
+		if value == filetype then
+			return true
+		end
+	end
+	return false
+end
+
+local function can_shade(winid)
+	if #state.exclude_filetypes == 0 then
+		return true
+	end
+	local buf_id = vim.api.nvim_win_get_buf(winid)
+	local filetype = vim.api.nvim_buf_get_option(buf_id, "filetype")
+
+	if is_filetype_excluded(filetype) then
+		return false
+	end
+
+	return true
+end
 
 local function shade_window(winid)
 	local overlay = state.active_overlays[winid]
@@ -250,8 +272,10 @@ local function shade_tabpage(winid)
 		if api.nvim_win_is_valid(overlay_winid) then
 			local diff_enabled = api.nvim_win_get_option(overlay_winid, "diff")
 			if overlay_winid ~= winid and diff_enabled == false then
-				log("deactivating window", overlay_winid)
-				shade_window(overlay_winid)
+				if can_shade(overlay_winid) then
+					log("deactivating window", overlay_winid)
+					shade_window(overlay_winid)
+				end
 			end
 		end
 	end
@@ -283,7 +307,9 @@ local function create_tabpage_overlays(tabid)
 	local wincfg
 	for _, winid in pairs(api.nvim_tabpage_list_wins(tabid)) do
 		wincfg = api.nvim_call_function("getwininfo", { winid })[1]
-		create_overlay_window(winid, filter_wininfo(wincfg))
+		if can_shade(winid) then
+			create_overlay_window(winid, filter_wininfo(wincfg))
+		end
 	end
 	unshade_window(api.nvim_get_current_win())
 end
@@ -301,6 +327,7 @@ shade.init = function(opts)
 		or (state.debug == true and E.DEBUG_OVERLAY_OPACITY or E.DEFAULT_OVERLAY_OPACITY)
 	state.opacity_step = opts.opacity_step or E.DEFAULT_OPACITY_STEP
 	state.shade_under_float = opts.shade_under_float or true
+	state.exclude_filetypes = opts.exclude_filetypes or {}
 
 	state.shade_nsid = api.nvim_create_namespace("shade")
 
