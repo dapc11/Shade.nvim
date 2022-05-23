@@ -180,7 +180,7 @@ end
 --
 local function create_hl_groups()
     local overlay_color
-    if state.debug == true then
+    if state.debug then
         overlay_color = "#77a992"
     else
         overlay_color = "None"
@@ -215,27 +215,25 @@ local function map_key(mode, key, action)
     local req_module = ("<cmd>lua require'shade'.%s<CR>"):format(action)
     vim.api.nvim_set_keymap(mode, key, req_module, { noremap = true, silent = true })
 end
-local function is_filetype_excluded(filetype)
+
+local function is_filetype_excluded(winid)
+    local buf_id = vim.api.nvim_win_get_buf(winid)
+    local filetype = vim.api.nvim_buf_get_option(buf_id, "filetype")
+
     for _, value in ipairs(state.exclude_filetypes) do
         if value == filetype then
-            return true
+            return false
         end
     end
-    return false
+    return true
 end
 
 local function can_shade(winid)
     if #state.exclude_filetypes == 0 then
         return true
+    else
+        return is_filetype_excluded(winid)
     end
-    local buf_id = vim.api.nvim_win_get_buf(winid)
-    local filetype = vim.api.nvim_buf_get_option(buf_id, "filetype")
-
-    if is_filetype_excluded(filetype) then
-        return false
-    end
-
-    return true
 end
 
 local function shade_window(winid)
